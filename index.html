@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4D Spatial Sequence Visualizer v1.2</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * { box-sizing: border-box; }
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: #0b0c10; color: #fff; overflow: hidden; }
+    #map { width: 100vw; height: 100vh; background: #0b0c10; }
+
+    /* Title Overlay */
+    .title-overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: rgba(15, 15, 20, 0.88);
+      padding: 12px 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      backdrop-filter: blur(8px);
+    }
+    .title-overlay input {
+      background: transparent;
+      border: 1px dashed transparent;
+      color: #ffffff;
+      outline: none;
+      font-family: inherit;
+    }
+    .title-overlay input:hover, .title-overlay input:focus {
+      border-color: #00e5ff;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 4px;
+    }
+    .main-title { font-size: 18px; font-weight: 700; width: 320px; color: #fff; }
+    .sub-title { font-size: 12px; color: #00e5ff; width: 320px; }
+
+    /* HUD Info Panel */
+    .info-hud {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      background: rgba(15, 15, 20, 0.88);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      padding: 12px 18px;
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      text-align: right;
+      min-width: 250px;
+    }
+    .hud-label { font-size: 10px; text-transform: uppercase; color: #888; letter-spacing: 1px; }
+    .hud-date { font-family: monospace; font-size: 18px; font-weight: bold; color: #00e5ff; margin-top: 2px; }
+    .hud-counter { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1); font-size: 11px; color: #aaa; text-align: left; }
+    .hud-counter div { margin-bottom: 2px; }
+    .hud-counter span { font-family: monospace; font-size: 13px; font-weight: bold; color: #00e5ff; }
+
+    /* Footer Bawah Kiri */
+    .footer-credits {
+      position: absolute;
+      bottom: 25px;
+      left: 20px;
+      z-index: 1000;
+      background: rgba(15, 15, 20, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 6px 12px;
+      border-radius: 8px;
+      backdrop-filter: blur(6px);
+      font-size: 10px;
+      color: #888888;
+      line-height: 1.3;
+      pointer-events: none;
+      user-select: none;
+    }
+    .footer-credits div:first-child {
+      font-weight: 600;
+      color: #aaaaaa;
+    }
+
+    /* Dynamic Layer Manager Panel */
+    .unified-layer-legend {
+      position: absolute;
+      top: 150px;
+      right: 20px;
+      z-index: 1000;
+      background: rgba(15, 15, 20, 0.88);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      padding: 14px;
+      border-radius: 12px;
+      min-width: 310px;
+      max-height: 60vh;
+      overflow-y: auto;
+      font-size: 12px;
+      backdrop-filter: blur(8px);
+    }
+    .unified-layer-legend h4 { 
+      margin: 0 0 10px 0; 
+      font-size: 12px; 
+      color: #00e5ff; 
+      border-bottom: 1px solid rgba(255,255,255,0.1); 
+      padding-bottom: 6px; 
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .layer-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+    }
+    .layer-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+    .layer-header input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: #00e5ff;
+    }
+    .layer-title {
+      font-weight: 600;
+      color: #fff;
+      font-size: 11px;
+      flex-grow: 1;
+    }
+    .layer-controls {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed rgba(255,255,255,0.1);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 10px;
+      color: #aaa;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .control-group input[type="color"] {
+      border: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      background: transparent;
+    }
+    .control-group input[type="range"] {
+      width: 50px;
+      accent-color: #00e5ff;
+      cursor: pointer;
+    }
+    .control-group select {
+      background: #15151c;
+      color: #00e5ff;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      font-size: 10px;
+      padding: 2px 4px;
+      max-width: 110px;
+      outline: none;
+    }
+
+    .time-toggle-label {
+      font-size: 10px;
+      color: #888;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(255,255,255,0.05);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* Sub-Legenda Kategoris */
+    .category-legend-list {
+      margin-top: 6px;
+      padding-top: 4px;
+      border-top: 1px dotted rgba(255,255,255,0.1);
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    .category-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: #ddd;
+      margin-bottom: 3px;
+    }
+    .category-color-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid #fff;
+    }
+
+    /* Controls Panel */
+    .controls {
+      position: absolute;
+      bottom: 25px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(18, 18, 24, 0.95);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      padding: 10px 22px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    }
+    .btn {
+      background: #00e5ff; border: none; color: #000; padding: 7px 14px; border-radius: 18px;
+      cursor: pointer; font-weight: bold; font-size: 12px; transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+    }
+    .btn:hover { background: #00b3cc; transform: scale(1.03); }
+    .btn-secondary { background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2); }
+    .btn-secondary:hover { background: rgba(0, 229, 255, 0.2); color: #00e5ff; }
+    .btn-rec { background: #ff5252; color: #fff; }
+    .btn-rec:hover { background: #ff1744; }
+
+    .time-slider-container { display: flex; flex-direction: column; gap: 2px; min-width: 220px; }
+    .time-slider-container input[type="range"] { width: 100%; cursor: pointer; accent-color: #00e5ff; }
+    .time-range-inputs { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #aaa; }
+    .time-range-inputs input { background: #222; color: #00e5ff; border: 1px solid rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 6px; font-size: 11px; }
+
+    input[type="file"] { display: none; }
+    .file-upload-btn {
+      background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff;
+      padding: 7px 14px; border-radius: 18px; cursor: pointer; font-weight: 600; font-size: 12px;
+    }
+    .file-upload-btn:hover { background: #00e5ff; color: #000; }
+
+    /* Basemap Switcher */
+    .basemap-switcher {
+      position: absolute;
+      bottom: 25px;
+      right: 20px;
+      z-index: 1000;
+    }
+    .basemap-switcher select {
+      background: rgba(15, 15, 20, 0.9);
+      color: #00e5ff;
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* Pop-up Tooltip Tanggal Kuning Melayang */
+    .point-date-tooltip {
+      background: rgba(11, 12, 16, 0.92);
+      border: 1px solid #ffea00;
+      color: #ffea00;
+      font-family: monospace;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 6px;
+      white-space: nowrap;
+      box-shadow: 0 2px 10px rgba(255,234,0,0.4);
+    }
+
+    /* Table Popup */
+    .leaflet-popup-content-wrapper { background: #121218; color: #fff; border: 1px solid #00e5ff; border-radius: 8px; max-height: 350px; overflow-y: auto; }
+    .leaflet-popup-tip { background: #121218; }
+    .attr-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+    .attr-table td, .attr-table th { padding: 4px 6px; border: 1px solid rgba(255,255,255,0.1); text-align: left; }
+    .attr-table th { background: rgba(0, 229, 255, 0.2); color: #00e5ff; }
+  </style>
+</head>
+<body>
+
+  <div class="title-overlay">
+    <input type="text" class="main-title" value="VISUALISASI 4D SPASIAL PROYEK v1.2" />
+    <input type="text" class="sub-title" value="Progres Temporal: Titik, Garis & Poligon" />
+  </div>
+
+  <div class="info-hud">
+    <div class="hud-label">Tanggal Aktif</div>
+    <div class="hud-date" id="date-hud">-- / -- / ----</div>
+    <div class="hud-counter" id="counter-list">
+      <div>Titik: <span id="point-count">0</span></div>
+      <div>Garis: <span id="line-count">0</span></div>
+      <div>Poligon: <span id="poly-count">0</span></div>
+    </div>
+  </div>
+
+  <!-- Footer Credits (Bawah Kiri) -->
+  <div class="footer-credits">
+    <div>Tim Digital Survei & GIS | 2026</div>
+    <div>Divisi Infrastruktur | PT. Waskita Karya</div>
+  </div>
+
+  <!-- Dynamic Layer Manager & Legend Panel -->
+  <div class="unified-layer-legend">
+    <h4>Layer Manager & Legenda</h4>
+    <div id="dynamic-layer-list">
+      <div style="font-size:11px; color:#888;">Silakan impor file spasial...</div>
+    </div>
+  </div>
+
+  <!-- Basemap Switcher -->
+  <div class="basemap-switcher">
+    <select id="basemap-select">
+      <option value="dark">Peta Dark Mode</option>
+      <option value="satellite">Satelit Esri</option>
+    </select>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="controls">
+    <label for="spatial-input" class="file-upload-btn">📂 Import File (SHP/KMZ/GeoJSON)</label>
+    <input type="file" id="spatial-input" accept=".zip, .kmz, .kml, .geojson, .json" multiple />
+
+    <button class="btn" id="play-btn">▶ Play</button>
+
+    <div class="time-slider-container">
+      <input type="range" id="time-slider" min="0" max="100" value="0" step="1" />
+      <div class="time-range-inputs">
+        <input type="date" id="start-date" />
+        <span>s/d</span>
+        <input type="date" id="end-date" />
+      </div>
+    </div>
+
+    <select id="speed-select" style="background:#222; color:#00e5ff; border:1px solid rgba(255,255,255,0.2); border-radius:12px; padding:4px;">
+      <option value="600">0.5x (Lambat)</option>
+      <option value="300" selected>1x (Sedang)</option>
+      <option value="120">2.5x (Cepat)</option>
+    </select>
+
+    <button class="btn btn-secondary" id="download-jpg-btn">📷 JPG</button>
+    <button class="btn btn-rec" id="record-mp4-btn">📹 Rec</button>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+  <script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <script>
+    const map = L.map('map', { zoomControl: false }).setView([-2.5489, 118.0149], 5);
+
+    const darkTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri Dark', maxZoom: 18 }).addTo(map);
+    const satTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri Satellite', maxZoom: 18 });
+
+    document.getElementById('basemap-select').addEventListener('change', function(e) {
+      if (e.target.value === 'satellite') {
+        map.removeLayer(darkTile);
+        satTile.addTo(map);
+      } else {
+        map.removeLayer(satTile);
+        darkTile.addTo(map);
+      }
+    });
+
+    const pointGroup = L.layerGroup().addTo(map);
+    const lineGroup = L.layerGroup().addTo(map);
+    const polyGroup = L.layerGroup().addTo(map);
+
+    let parsedDataset = [];
+    let timeSteps = [];
+    let currentStepIndex = 0;
+    let isPlaying = false;
+    let playTimer = null;
+
+    const CATEGORY_COLORS = [
+      '#00e5ff', '#ff4081', '#7c4dff', '#ff9100', '#00e676', 
+      '#ffea00', '#e040fb', '#18ffff', '#ff5252', '#b2ff59'
+    ];
+
+    let layerSettings = {
+      Point: { 
+        visible: true, 
+        useTimeSlider: true, 
+        color: '#2e7d32', 
+        latestColor: '#ffea00', 
+        opacity: 0.9,
+        categoryField: '', 
+        categoryMap: {}    
+      },
+      LineString: { visible: true, useTimeSlider: true, color: '#00e5ff', opacity: 0.8 },
+      Polygon: { visible: true, useTimeSlider: false, color: '#2e7d32', opacity: 0.35 }
+    };
+
+    const DATE_KEYS = ['date_actio', 'date_iso', 'survey-date', 'survey_date', 'tanggal', 'date', 'time', 'timestamp', 'created_at', 'tgl'];
+
+    function isValidIndonesiaCoords(lat, lng) {
+      return (lat >= -11.5 && lat <= 6.5) && (lng >= 94.5 && lng <= 141.5);
+    }
+
+    function extractLatLng(properties, geometry) {
+      let lat = null, lng = null;
+
+      if (properties) {
+        for (let key in properties) {
+          let k = key.toLowerCase().trim();
+          if (k === 'y' || k === 'latitude' || k === 'lat') lat = parseFloat(properties[key]);
+          if (k === 'x' || k === 'longitude' || k === 'lng' || k === 'lon') lng = parseFloat(properties[key]);
+        }
+      }
+
+      if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng) && isValidIndonesiaCoords(lat, lng)) {
+        return [lat, lng];
+      }
+
+      if (geometry && geometry.coordinates) {
+        let c = geometry.coordinates;
+        let c0 = parseFloat(c[0]);
+        let c1 = parseFloat(c[1]);
+
+        if (isValidIndonesiaCoords(c1, c0)) return [c1, c0];
+        if (isValidIndonesiaCoords(c0, c1)) return [c0, c1];
+      }
+      return null;
+    }
+
+    function parseDateValue(val) {
+      if (!val) return null;
+      let s = String(val).trim();
+
+      if (s.includes('/') || s.includes('-')) {
+        let delim = s.includes('/') ? '/' : '-';
+        let parts = s.split(delim);
+        
+        if (parts.length === 3) {
+          if (parts[0].length <= 2 && parts[2].length === 4) {
+            let d = parseInt(parts[0], 10);
+            let m = parseInt(parts[1], 10) - 1;
+            let y = parseInt(parts[2], 10);
+            return new Date(y, m, d);
+          }
+          else if (parts[0].length === 4) {
+            let y = parseInt(parts[0], 10);
+            let m = parseInt(parts[1], 10) - 1;
+            let d = parseInt(parts[2], 10);
+            return new Date(y, m, d);
+          }
+        }
+      }
+
+      let d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function extractDate(properties) {
+      if (!properties) return null;
+      for (let key of Object.keys(properties)) {
+        if (DATE_KEYS.includes(key.toLowerCase().trim())) {
+          let parsed = parseDateValue(properties[key]);
+          if (parsed) return parsed;
+        }
+      }
+      return null;
+    }
+
+    document.getElementById('spatial-input').addEventListener('change', async function(e) {
+      const files = e.target.files;
+      if (!files.length) return;
+
+      for (let file of files) {
+        const fileExt = file.name.toLowerCase();
+        let geojson = null;
+
+        try {
+          if (fileExt.endsWith('.zip')) {
+            const buffer = await file.arrayBuffer();
+            geojson = await shp(buffer);
+          } else if (fileExt.endsWith('.kmz')) {
+            const zip = await JSZip.loadAsync(file);
+            const kmlFile = Object.keys(zip.files).find(f => f.endsWith('.kml'));
+            const kmlText = await zip.files[kmlFile].async('string');
+            const dom = new DOMParser().parseFromString(kmlText, 'text/xml');
+            geojson = toGeoJSON.kml(dom);
+          } else if (fileExt.endsWith('.kml')) {
+            const text = await file.text();
+            const dom = new DOMParser().parseFromString(text, 'text/xml');
+            geojson = toGeoJSON.kml(dom);
+          } else if (fileExt.endsWith('.geojson') || fileExt.endsWith('.json')) {
+            const text = await file.text();
+            geojson = JSON.parse(text);
+          }
+
+          if (geojson) {
+            processGeoJSON(geojson);
+          }
+        } catch (err) {
+          alert('Gagal membaca file: ' + file.name + ' (' + err.message + ')');
+        }
+      }
+
+      rebuildLayerManagerUI();
+      e.target.value = '';
+    });
+
+    function processGeoJSON(data) {
+      const features = data.type === 'FeatureCollection' ? data.features : (data.features || [data]);
+      let allBounds = [];
+
+      features.forEach(feat => {
+        if (!feat.geometry) return;
+        
+        let dateObj = extractDate(feat.properties);
+
+        if (feat.geometry.type === 'Point') {
+          let latLng = extractLatLng(feat.properties, feat.geometry);
+          if (latLng) {
+            allBounds.push(latLng);
+            parsedDataset.push({
+              type: 'Point',
+              latLng: latLng,
+              properties: feat.properties || {},
+              dateObj: dateObj
+            });
+          }
+        } else if (feat.geometry.type === 'LineString') {
+          let coords = feat.geometry.coordinates.map(c => [c[1], c[0]]);
+          coords.forEach(c => {
+            if (isValidIndonesiaCoords(c[0], c[1])) allBounds.push(c);
+          });
+          parsedDataset.push({
+            type: 'LineString',
+            coordinates: coords,
+            properties: feat.properties || {},
+            dateObj: dateObj
+          });
+        } else if (feat.geometry.type === 'Polygon' || feat.geometry.type === 'MultiPolygon') {
+          parsedDataset.push({
+            type: 'Polygon',
+            geometry: feat.geometry,
+            properties: feat.properties || {},
+            dateObj: dateObj
+          });
+        }
+      });
+
+      parsedDataset.sort((a, b) => {
+        if (!a.dateObj) return -1;
+        if (!b.dateObj) return 1;
+        return a.dateObj - b.dateObj;
+      });
+
+      let dates = parsedDataset.filter(item => item.dateObj).map(item => item.dateObj.getTime());
+
+      if (dates.length > 0) {
+        let minDate = new Date(Math.min(...dates));
+        let maxDate = new Date(Math.max(...dates));
+
+        document.getElementById('start-date').value = minDate.toISOString().split('T')[0];
+        document.getElementById('end-date').value = maxDate.toISOString().split('T')[0];
+
+        generateTimeSteps(minDate, maxDate);
+      }
+
+      if (allBounds.length > 0) {
+        const bounds = L.latLngBounds(allBounds);
+        map.fitBounds(bounds, { padding: [80, 80] });
+      }
+
+      renderStep(currentStepIndex);
+    }
+
+    function getPointAttributeKeys() {
+      let keys = new Set();
+      parsedDataset.forEach(item => {
+        if (item.type === 'Point' && item.properties) {
+          Object.keys(item.properties).forEach(k => {
+            if (!DATE_KEYS.includes(k.toLowerCase().trim())) {
+              keys.add(k);
+            }
+          });
+        }
+      });
+      return Array.from(keys);
+    }
+
+    function buildCategoryMap(fieldName) {
+      if (!fieldName) {
+        layerSettings.Point.categoryMap = {};
+        return;
+      }
+
+      let uniqueValues = new Set();
+      parsedDataset.forEach(item => {
+        if (item.type === 'Point' && item.properties && item.properties[fieldName] !== undefined) {
+          uniqueValues.add(String(item.properties[fieldName]));
+        }
+      });
+
+      let categoryMap = {};
+      let idx = 0;
+      uniqueValues.forEach(val => {
+        categoryMap[val] = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+        idx++;
+      });
+
+      layerSettings.Point.categoryMap = categoryMap;
+    }
+
+    function rebuildLayerManagerUI() {
+      const container = document.getElementById('dynamic-layer-list');
+      container.innerHTML = '';
+
+      const layers = [
+        { key: 'Point', name: 'Titik Spasial' },
+        { key: 'LineString', name: 'Trase / Garis' },
+        { key: 'Polygon', name: 'Zonasi / Poligon' }
+      ];
+
+      const pointAttrKeys = getPointAttributeKeys();
+
+      layers.forEach(l => {
+        const set = layerSettings[l.key];
+        const card = document.createElement('div');
+        card.className = 'layer-card';
+
+        let categoryDropdownHTML = '';
+        if (l.key === 'Point') {
+          let options = `<option value="">-- Single Color --</option>`;
+          pointAttrKeys.forEach(k => {
+            let sel = (set.categoryField === k) ? 'selected' : '';
+            options += `<option value="${k}" ${sel}>${k}</option>`;
+          });
+          categoryDropdownHTML = `
+            <div class="control-group" style="grid-column: span 2;">
+              <label>Kategori Atribut:</label>
+              <select id="cat-field-${l.key}">${options}</select>
+            </div>
+          `;
+        }
+
+        let categoryLegendHTML = '';
+        if (l.key === 'Point' && set.categoryField && Object.keys(set.categoryMap).length > 0) {
+          categoryLegendHTML = `<div class="category-legend-list">`;
+          for (let [val, col] of Object.entries(set.categoryMap)) {
+            categoryLegendHTML += `
+              <div class="category-item">
+                <span class="category-color-dot" style="background:${col};"></span>
+                <span>${val}</span>
+              </div>
+            `;
+          }
+          categoryLegendHTML += `</div>`;
+        }
+
+        card.innerHTML = `
+          <div class="layer-header">
+            <input type="checkbox" id="vis-${l.key}" ${set.visible ? 'checked' : ''} />
+            <span class="layer-title">${l.name}</span>
+            <label class="time-toggle-label">
+              <input type="checkbox" id="time-${l.key}" ${set.useTimeSlider ? 'checked' : ''} />
+              Time Slider
+            </label>
+          </div>
+          <div class="layer-controls">
+            ${categoryDropdownHTML}
+            <div class="control-group">
+              <label>Warna Default:</label>
+              <input type="color" id="color-${l.key}" value="${set.color}" />
+            </div>
+            <div class="control-group">
+              <label>Transp:</label>
+              <input type="range" id="opac-${l.key}" min="0.1" max="1" step="0.05" value="${set.opacity}" />
+            </div>
+          </div>
+          ${categoryLegendHTML}
+        `;
+        container.appendChild(card);
+
+        document.getElementById(`vis-${l.key}`).addEventListener('change', (e) => {
+          layerSettings[l.key].visible = e.target.checked;
+          renderStep(currentStepIndex);
+        });
+
+        document.getElementById(`time-${l.key}`).addEventListener('change', (e) => {
+          layerSettings[l.key].useTimeSlider = e.target.checked;
+          renderStep(currentStepIndex);
+        });
+
+        document.getElementById(`color-${l.key}`).addEventListener('input', (e) => {
+          layerSettings[l.key].color = e.target.value;
+          renderStep(currentStepIndex);
+        });
+
+        document.getElementById(`opac-${l.key}`).addEventListener('input', (e) => {
+          layerSettings[l.key].opacity = parseFloat(e.target.value);
+          renderStep(currentStepIndex);
+        });
+
+        if (l.key === 'Point') {
+          document.getElementById(`cat-field-${l.key}`).addEventListener('change', (e) => {
+            layerSettings.Point.categoryField = e.target.value;
+            buildCategoryMap(e.target.value);
+            rebuildLayerManagerUI();
+            renderStep(currentStepIndex);
+          });
+        }
+      });
+    }
+
+    document.getElementById('start-date').addEventListener('change', applyDateFilter);
+    document.getElementById('end-date').addEventListener('change', applyDateFilter);
+
+    function applyDateFilter() {
+      let startVal = document.getElementById('start-date').value;
+      let endVal = document.getElementById('end-date').value;
+
+      let startDate = startVal ? new Date(startVal + "T00:00:00") : null;
+      let endDate = endVal ? new Date(endVal + "T23:59:59") : null;
+
+      if (startDate && endDate && startDate > endDate) {
+        alert("Tanggal mulai tidak boleh lebih besar dari tanggal selesai!");
+        return;
+      }
+
+      if (startDate && endDate) {
+        generateTimeSteps(startDate, endDate);
+        renderStep(0);
+      }
+    }
+
+    function generateTimeSteps(startDate, endDate) {
+      timeSteps = [];
+      let curr = new Date(startDate);
+      while (curr <= endDate) {
+        timeSteps.push(new Date(curr));
+        curr.setDate(curr.getDate() + 1);
+      }
+      if (timeSteps.length === 0) timeSteps.push(startDate);
+
+      const slider = document.getElementById('time-slider');
+      slider.min = 0;
+      slider.max = timeSteps.length - 1;
+      slider.value = 0;
+    }
+
+    function createAttributeTable(props) {
+      let html = '<table class="attr-table"><thead><tr><th>Atribut</th><th>Nilai</th></tr></thead><tbody>';
+      for (let key in props) {
+        html += `<tr><td><b>${key}</b></td><td>${props[key]}</td></tr>`;
+      }
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function renderStep(index) {
+      if (timeSteps.length === 0 && parsedDataset.length === 0) return;
+      currentStepIndex = index;
+      const currentDate = timeSteps[index] || new Date();
+
+      document.getElementById('date-hud').innerText = currentDate.toLocaleDateString('id-ID');
+      document.getElementById('time-slider').value = index;
+
+      pointGroup.clearLayers();
+      lineGroup.clearLayers();
+      polyGroup.clearLayers();
+
+      let activePoints = 0, activeLines = 0, activePolys = 0;
+      let startFilterVal = document.getElementById('start-date').value;
+      let minFilterDate = startFilterVal ? new Date(startFilterVal + "T00:00:00") : null;
+
+      let activePointList = [];
+
+      parsedDataset.forEach(item => {
+        const settings = layerSettings[item.type];
+        if (!settings || !settings.visible) return;
+
+        let isVisible = false;
+
+        if (!settings.useTimeSlider || !item.dateObj) {
+          isVisible = true;
+        } else if ((!minFilterDate || item.dateObj >= minFilterDate) && item.dateObj <= currentDate) {
+          isVisible = true;
+        }
+
+        if (isVisible) {
+          if (item.type === 'Point') {
+            activePoints++;
+            activePointList.push(item);
+          } else if (item.type === 'LineString') {
+            activeLines++;
+            const polyline = L.polyline(item.coordinates, { 
+              color: settings.color, 
+              weight: 2.5, 
+              opacity: settings.opacity 
+            });
+            polyline.bindPopup(createAttributeTable(item.properties));
+            lineGroup.addLayer(polyline);
+          } else if (item.type === 'Polygon') {
+            activePolys++;
+            const polygon = L.geoJSON(item.geometry, {
+              style: { 
+                color: settings.color, 
+                fillColor: settings.color, 
+                fillOpacity: settings.opacity, 
+                weight: 1.5 
+              }
+            });
+            polygon.bindPopup(createAttributeTable(item.properties));
+            polyGroup.addLayer(polygon);
+          }
+        }
+      });
+
+      const ptSettings = layerSettings['Point'];
+      activePointList.forEach((ptItem, idx) => {
+        const isLatest = (idx === activePointList.length - 1 && ptSettings.useTimeSlider);
+
+        let markerColor = ptSettings.color;
+        if (ptSettings.categoryField && ptItem.properties && ptItem.properties[ptSettings.categoryField] !== undefined) {
+          let val = String(ptItem.properties[ptSettings.categoryField]);
+          if (ptSettings.categoryMap[val]) {
+            markerColor = ptSettings.categoryMap[val];
+          }
+        }
+
+        const circleMarker = L.circleMarker(ptItem.latLng, {
+          radius: isLatest ? 8 : 5,
+          fillColor: isLatest ? ptSettings.latestColor : markerColor,
+          color: isLatest ? '#ffffff' : '#ffffff',
+          weight: isLatest ? 2 : 1,
+          opacity: 1,
+          fillOpacity: ptSettings.opacity
+        });
+
+        circleMarker.bindPopup(createAttributeTable(ptItem.properties));
+
+        if (isLatest) {
+          circleMarker.bindTooltip(ptItem.dateObj.toLocaleDateString('id-ID'), {
+            permanent: true,
+            direction: 'top',
+            className: 'point-date-tooltip',
+            offset: [0, -8]
+          }).openTooltip();
+        }
+
+        pointGroup.addLayer(circleMarker);
+      });
+
+      if(document.getElementById('point-count')) document.getElementById('point-count').innerText = activePoints;
+      if(document.getElementById('line-count')) document.getElementById('line-count').innerText = activeLines;
+      if(document.getElementById('poly-count')) document.getElementById('poly-count').innerText = activePolys;
+    }
+
+    document.getElementById('time-slider').addEventListener('input', function(e) {
+      renderStep(parseInt(e.target.value));
+    });
+
+    document.getElementById('play-btn').addEventListener('click', function() {
+      isPlaying ? pauseAnimation() : startAnimation();
+    });
+
+    function startAnimation() {
+      isPlaying = true;
+      document.getElementById('play-btn').innerText = '⏸ Pause';
+      const speed = parseInt(document.getElementById('speed-select').value);
+
+      playTimer = setInterval(() => {
+        if (currentStepIndex < timeSteps.length - 1) {
+          renderStep(currentStepIndex + 1);
+        } else {
+          pauseAnimation();
+        }
+      }, speed);
+    }
+
+    function pauseAnimation() {
+      isPlaying = false;
+      clearInterval(playTimer);
+      document.getElementById('play-btn').innerText = '▶ Play';
+    }
+
+    document.getElementById('download-jpg-btn').addEventListener('click', function() {
+      html2canvas(document.body, { useCORS: true, allowTaint: true }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = '4D-Spatial-v1.2-Snapshot.jpg';
+        link.href = canvas.toDataURL('image/jpeg', 0.95);
+        link.click();
+      });
+    });
+
+    let mediaRecorder, recordedChunks = [];
+    document.getElementById('record-mp4-btn').addEventListener('click', async function() {
+      if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+        try {
+          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          mediaRecorder = new MediaRecorder(stream);
+          recordedChunks = [];
+          mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = '4D-Sequence-v1.2.mp4';
+            a.click();
+          };
+          mediaRecorder.start();
+          this.innerText = '⏹ Stop';
+        } catch (err) { alert('Perekaman dibatalkan'); }
+      } else {
+        mediaRecorder.stop();
+        this.innerText = '📹 Rec';
+      }
+    });
+  </script>
+</body>
+</html>
